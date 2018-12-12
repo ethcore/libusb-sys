@@ -1,18 +1,23 @@
 extern crate cc;
 
+use std::env::var;
+
 fn main() {
+	let target_os = var("CARGO_CFG_TARGET_OS").unwrap();
+	let target_family = var("CARGO_CFG_TARGET_FAMILY").unwrap();
+
 	let mut base_config = cc::Build::new();
 	base_config.include(".");
 	base_config.include("libusb/libusb");
 
-	if cfg!(target_os = "macos") {
+	if target_os == "macos" {
 		base_config.define("OS_DARWIN", Some("1"));
 		base_config.file("libusb/libusb/os/darwin_usb.c");
 		link_framework("CoreFoundation");
 		link_framework("IOKit");
 		link("objc", false);
 	}
-	if cfg!(target_os = "linux") {
+	if target_os == "linux" {
 		base_config.define("OS_LINUX", Some("1"));
 		base_config.define("HAVE_ASM_TYPES_H", Some("1"));
 		base_config.define("HAVE_LINUX_NETLINK_H", Some("1"));
@@ -24,7 +29,7 @@ fn main() {
 		base_config.define("_GNU_SOURCE", Some("1"));
 	}
 
-	if cfg!(unix) {
+	if target_family == "unix" {
 		base_config.define("HAVE_DLFCN_H", Some("1"));
 		base_config.define("HAVE_GETTIMEOFDAY", Some("1"));
 		base_config.define("HAVE_INTTYPES_H", Some("1"));
@@ -48,7 +53,7 @@ fn main() {
 		base_config.file("libusb/libusb/os/threads_posix.c");
 	}
 
-	if cfg!(windows) {
+	if target_os == "windows" {
 		base_config.define("OS_WINDOWS", Some("1"));
 		base_config.file("libusb/libusb/os/poll_windows.c");
 		base_config.file("libusb/libusb/os/threads_windows.c");
@@ -74,7 +79,6 @@ fn main() {
 }
 
 pub fn link(name: &str, bundled: bool) {
-    use std::env::var;
     let target = var("TARGET").unwrap();
     let target: Vec<_> = target.split('-').collect();
     if target.get(2) == Some(&"windows") {
