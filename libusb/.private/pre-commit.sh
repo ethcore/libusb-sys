@@ -12,12 +12,12 @@
 # fi
 #
 # NOTE: These versioning hooks are intended to be used *INTERNALLY* by the
-# libusbx development team and are NOT intended to solve versioning for any
+# libusb development team and are NOT intended to solve versioning for any
 # derivative branch, such as one you would create for private development.
 #
 # Should you wish to reuse these scripts for your own versioning, in your own
 # private branch, we kindly ask you to first set BRANCH_OFFSET to 60000, or
-# higher, as any offset below below 60000 is *RESERVED* for libusbx official
+# higher, as any offset below below 60000 is *RESERVED* for libusb official
 # usage.
 
 ################################################################################
@@ -26,7 +26,13 @@
 BRANCH_OFFSET=10000
 ################################################################################
 
-type -P git &>/dev/null || { echo "git command not found. Aborting." >&2; exit 1; }
+if [ "$BASH_VERSION" = '' ]; then
+  TYPE_CMD="type git >/dev/null 2>&1"
+else
+  TYPE_CMD="type -P git &>/dev/null"
+fi
+
+eval $TYPE_CMD || { echo "git command not found. Aborting." >&2; exit 1; }
 
 NANO=`git log --oneline | wc -l`
 NANO=`expr $NANO + $BRANCH_OFFSET`
