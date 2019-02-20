@@ -2,7 +2,10 @@
 
 extern crate libc;
 
-use libc::{c_void, c_int, c_uint, c_char, c_uchar, c_short, ssize_t, timeval};
+use libc::{
+    c_void, c_int, c_uint, c_char, c_uchar, c_short, intptr_t,
+    size_t, ssize_t, timeval,
+};
 
 
 #[repr(C)]
@@ -240,6 +243,10 @@ pub const LIBUSB_LOG_LEVEL_WARNING: c_int = 2;
 pub const LIBUSB_LOG_LEVEL_INFO:    c_int = 3;
 pub const LIBUSB_LOG_LEVEL_DEBUG:   c_int = 4;
 
+//// libusb_log_cb_mode
+pub const LIBUSB_LOG_CG_GLOBAL:    u8 = 1 << 0;
+pub const LIBUSB_LOG_CG_CONTEXT:   u8 = 1 << 1;
+
 
 // libusb_class_code
 pub const LIBUSB_CLASS_PER_INTERFACE:       u8 = 0;
@@ -263,11 +270,12 @@ pub const LIBUSB_CLASS_VENDOR_SPEC:         u8 = 0xFF;
 
 
 // libusb_speed
-pub const LIBUSB_SPEED_UNKNOWN: c_int = 0;
-pub const LIBUSB_SPEED_LOW:     c_int = 1;
-pub const LIBUSB_SPEED_FULL:    c_int = 2;
-pub const LIBUSB_SPEED_HIGH:    c_int = 3;
-pub const LIBUSB_SPEED_SUPER:   c_int = 4;
+pub const LIBUSB_SPEED_UNKNOWN:      c_int = 0;
+pub const LIBUSB_SPEED_LOW:          c_int = 1;
+pub const LIBUSB_SPEED_FULL:         c_int = 2;
+pub const LIBUSB_SPEED_HIGH:         c_int = 3;
+pub const LIBUSB_SPEED_SUPER:        c_int = 4;
+pub const LIBUSB_SPEED_SUPER_PLUS:   c_int = 5;
 
 
 // libusb_descriptor_type
@@ -359,6 +367,13 @@ pub const LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT: libusb_hotplug_event    = 0x02;
 
 pub const LIBUSB_HOTPLUG_MATCH_ANY: c_int = -1;
 
+pub type libusb_option = c_int;
+pub const LIBUSB_OPTION_LOG_LEVEL: libusb_option = 0;
+pub const LIBUSB_OPTION_USE_USBDK: libusb_option = 1;
+
+pub type libusb_log_cb = extern "C" fn(ctx: *mut libusb_context, log_level: c_int, msg: *const c_char) -> c_int;
+
+
 extern "C" {
     pub fn libusb_get_version() -> *const libusb_version;
     pub fn libusb_has_capability(capability: u32) -> c_int;
@@ -369,6 +384,8 @@ extern "C" {
     pub fn libusb_init(context: *mut *mut libusb_context) -> c_int;
     pub fn libusb_exit(context: *mut libusb_context);
     pub fn libusb_set_debug(context: *mut libusb_context, level: c_int);
+    pub fn libusb_set_option(context: *mut libusb_context, option: libusb_option, level: c_int) -> c_int;
+    pub fn libusb_set_log_cb(context: *mut libusb_context, cb: libusb_log_cb, mode: c_int);
 
     pub fn libusb_get_device_list(context: *mut libusb_context, list: *mut *const *mut libusb_device) -> ssize_t;
     pub fn libusb_free_device_list(list: *const *mut libusb_device, unref_devices: c_int);
@@ -392,6 +409,7 @@ extern "C" {
     pub fn libusb_get_max_packet_size(dev: *const libusb_device, endpoint: c_uchar) -> c_int;
     pub fn libusb_get_max_iso_packet_size(dev: *const libusb_device, endpoint: c_uchar) -> c_int;
 
+    pub fn libusb_wrap_sys_device(context: *mut libusb_context, sys_dev: intptr_t, handle: *mut *mut libusb_device_handle) -> c_int;
     pub fn libusb_open(dev: *const libusb_device, handle: *mut *mut libusb_device_handle) -> c_int;
     pub fn libusb_close(dev_handle: *mut libusb_device_handle);
     pub fn libusb_open_device_with_vid_pid(context: *mut libusb_context, vendor_id: u16, product_id: u16) -> *mut libusb_device_handle;
@@ -399,6 +417,8 @@ extern "C" {
     pub fn libusb_clear_halt(dev_handle: *mut libusb_device_handle, endpoint: c_uchar) -> c_int;
     pub fn libusb_alloc_streams(dev_handle: *mut libusb_device_handle, num_streams: u32, endpoints: *mut c_uchar, num_endpoints: c_int) -> c_int;
     pub fn libusb_free_streams(dev_handle: *mut libusb_device_handle, endpoints: *mut c_uchar, num_endpoints: c_int) -> c_int;
+    pub fn libusb_dev_mem_alloc(dev_handle: *mut libusb_device_handle, length: size_t) -> *mut c_uchar;
+    pub fn libusb_dev_mem_free(dev_handle: *mut libusb_device_handle, buffer: *mut c_uchar, length: size_t) -> c_int;
     pub fn libusb_get_string_descriptor_ascii(dev_handle: *mut libusb_device_handle, desc_index: u8, data: *mut c_uchar, length: c_int) -> c_int;
 
     pub fn libusb_get_configuration(dev_handle: *mut libusb_device_handle, config: *mut c_int) -> c_int;
@@ -446,6 +466,7 @@ extern "C" {
     pub fn libusb_unlock_events(context: *mut libusb_context);
     pub fn libusb_event_handling_ok(context: *mut libusb_context) -> c_int;
     pub fn libusb_event_handler_active(context: *mut libusb_context) -> c_int;
+    pub fn libusb_interrupt_event_handler(context: *mut libusb_context);
     pub fn libusb_lock_event_waiters(context: *mut libusb_context);
     pub fn libusb_unlock_event_waiters(context: *mut libusb_context);
     pub fn libusb_wait_for_event(context: *mut libusb_context, tv: *const timeval) -> c_int;
@@ -453,6 +474,7 @@ extern "C" {
     pub fn libusb_pollfds_handle_timeouts(context: *mut libusb_context) -> c_int;
     pub fn libusb_get_next_timeout(context: *mut libusb_context, tv: *mut timeval) -> c_int;
     pub fn libusb_get_pollfds(context: *mut libusb_context) -> *const *mut libusb_pollfd;
+    pub fn libusb_free_pollfd(pollfds: *const *mut libusb_pollfd);
     pub fn libusb_set_pollfd_notifiers(context: *mut libusb_context, added_cb: libusb_pollfd_added_cb, removed_cb: libusb_pollfd_removed_cb, user_data: *mut c_void);
     pub fn libusb_hotplug_register_callback(ctx: *mut libusb_context, events: libusb_hotplug_event, flags: libusb_hotplug_flag, vendor_id: c_int, product_id: c_int, dev_class: c_int, cb_fn: libusb_hotplug_callback_fn, user_data: *mut c_void, callback_handle: *mut libusb_hotplug_callback_handle) -> c_int;
     pub fn libusb_hotplug_deregister_callback(ctx: *mut libusb_context, callback_handle: libusb_hotplug_callback_handle);}
