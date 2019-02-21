@@ -133,7 +133,7 @@ static int ezusb_write(libusb_device_handle *device, const char *label,
 		LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
 		opcode, addr & 0xFFFF, addr >> 16,
 		(unsigned char*)data, (uint16_t)len, 1000);
-	if (status != len) {
+	if (status != (signed)len) {
 		if (status < 0)
 			logerror("%s: %s\n", label, libusb_error_name(status));
 		else
@@ -156,7 +156,7 @@ static int ezusb_read(libusb_device_handle *device, const char *label,
 		LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
 		opcode, addr & 0xFFFF, addr >> 16,
 		(unsigned char*)data, (uint16_t)len, 1000);
-	if (status != len) {
+	if (status != (signed)len) {
 		if (status < 0)
 			logerror("%s: %s\n", label, libusb_error_name(status));
 		else
@@ -181,7 +181,7 @@ static bool ezusb_cpucs(libusb_device_handle *device, uint32_t addr, bool doRun)
 		RW_INTERNAL, addr & 0xFFFF, addr >> 16,
 		&data, 1, 1000);
 	if ((status != 1) &&
-		/* We may get an I/O error from libusbx as the device disappears */
+		/* We may get an I/O error from libusb as the device disappears */
 		((!doRun) || (status != LIBUSB_ERROR_IO)))
 	{
 		const char *mesg = "can't modify CPUCS";
@@ -208,7 +208,7 @@ static bool ezusb_fx3_jump(libusb_device_handle *device, uint32_t addr)
 		LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
 		RW_INTERNAL, addr & 0xFFFF, addr >> 16,
 		NULL, 0, 1000);
-	/* We may get an I/O error from libusbx as the device disappears */
+	/* We may get an I/O error from libusb as the device disappears */
 	if ((status != 0) && (status != LIBUSB_ERROR_IO))
 	{
 		const char *mesg = "failed to send jump command";
@@ -299,7 +299,7 @@ static int parse_ihex(FILE *image, void *context,
 		/* Read the target offset (address up to 64KB) */
 		tmp = buf[7];
 		buf[7] = 0;
-		off = (int)strtoul(buf+3, NULL, 16);
+		off = (unsigned int)strtoul(buf+3, NULL, 16);
 		buf[7] = tmp;
 
 		/* Initialize data_addr */
@@ -442,9 +442,11 @@ static int parse_iic(FILE *image, void *context,
 	if (initial_pos < 0)
 		return -1;
 
-	fseek(image, 0L, SEEK_END);
+	if (fseek(image, 0L, SEEK_END) != 0)
+		return -1;
 	file_size = ftell(image);
-	fseek(image, initial_pos, SEEK_SET);
+	if (fseek(image, initial_pos, SEEK_SET) != 0)
+		return -1;
 	for (;;) {
 		/* Ignore the trailing reset IIC data (5 bytes) */
 		if (ftell(image) >= (file_size - 5))
@@ -457,7 +459,7 @@ static int parse_iic(FILE *image, void *context,
 		data_addr = (block_header[2] << 8) + block_header[3];
 		if (data_len > sizeof(data)) {
 			/* If this is ever reported as an error, switch to using malloc/realloc */
-			logerror("IIC data block too small - please report this error to libusbx.org\n");
+			logerror("IIC data block too small - please report this error to libusb.info\n");
 			return -1;
 		}
 		read_len = fread(data, 1, data_len, image);
@@ -633,7 +635,8 @@ static int fx3_load_ram(libusb_device_handle *device, const char *path)
 		if (dLength == 0)
 			break; // done
 
-		dImageBuf = calloc(dLength, sizeof(uint32_t));
+		// coverity[tainted_data]
+		dImageBuf = (uint32_t*)calloc(dLength, sizeof(uint32_t));
 		if (dImageBuf == NULL) {
 			logerror("could not allocate buffer for image chunk\n");
 			ret = -4;
@@ -699,7 +702,7 @@ exit:
 }
 
 /*
- * Load a firmware file into target RAM. device is the open libusbx
+ * Load a firmware file into target RAM. device is the open libusb
  * device, and the path is the name of the source file. Open the file,
  * parse the bytes, and write them in one or two phases.
  *
@@ -813,9 +816,10 @@ int ezusb_load_ram(libusb_device_handle *device, const char *path, int fx_type, 
 		}
 	}
 
-	if (verbose)
+	if (verbose && (ctx.count != 0)) {
 		logerror("... WROTE: %d bytes, %d segments, avg %d\n",
-		(int)ctx.total, (int)ctx.count, (int)(ctx.total/ctx.count));
+			(int)ctx.total, (int)ctx.count, (int)(ctx.total/ctx.count));
+	}
 
 	/* if required, reset the CPU so it runs what we just uploaded */
 	if (cpucs_addr && !ezusb_cpucs(device, cpucs_addr, true))
