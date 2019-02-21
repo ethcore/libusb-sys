@@ -5,6 +5,7 @@ use std::env::var;
 fn main() {
 	let target_os = var("CARGO_CFG_TARGET_OS").unwrap();
 	let target_family = var("CARGO_CFG_TARGET_FAMILY").unwrap();
+	let target_env = var("CARGO_CFG_TARGET_ENV").unwrap();
 
 	let mut base_config = cc::Build::new();
 	base_config.include(".");
@@ -57,10 +58,12 @@ fn main() {
 		base_config.define("OS_WINDOWS", Some("1"));
 		base_config.file("libusb/libusb/os/poll_windows.c");
 		base_config.file("libusb/libusb/os/threads_windows.c");
-		base_config.file("libusb/libusb/os/windows_usb.c");
+		base_config.file("libusb/libusb/os/windows_winusb.c");
 
 		base_config.define("DEFAULT_VISIBILITY", Some(""));
-		base_config.define("_TIMESPEC_DEFINED", Some("1"));
+		if !target_env.contains("gnu") {
+			base_config.define("_TIMESPEC_DEFINED", Some("1"));
+		}
 		base_config.define("POLL_NFDS_TYPE", Some("unsigned int"));
 		base_config.define("HAVE_SIGNAL_H", Some("1"));
 		base_config.define("HAVE_SYS_TYPES_H", Some("1"));
