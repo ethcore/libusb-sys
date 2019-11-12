@@ -59,6 +59,8 @@ fn main() {
 		base_config.file("libusb/libusb/os/poll_windows.c");
 		base_config.file("libusb/libusb/os/threads_windows.c");
 		base_config.file("libusb/libusb/os/windows_winusb.c");
+		base_config.file("libusb/libusb/os/windows_nt_common.c");
+		base_config.file("libusb/libusb/os/windows_usbdk.c");
 
 		base_config.define("DEFAULT_VISIBILITY", Some(""));
 		if !target_env.contains("gnu") {
